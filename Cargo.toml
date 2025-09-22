@@ -1,0 +1,19 @@
+[package]
+name = "arkomp-plugins"
+version = "0.1.0"
+edition = "2024"
+
+[workspace]
+members = []
+
+[workspace.dependencies]
+shared = { path = "../arkomp/shared" }
+egui = { version = "0.32.3", default-features = false }
+log = { version = "0.4.28", default-features = false }
+wgpu = { version = "26.0.1", default-features = false }
+chrono = { version = "0.4.42", default-features = false }
+image = { version = "0.25.8", default-features = false }
+rusty_spine = { path = "../arkomp/crates/rusty_spine3.8", features = [
+	"draw_functions",
+	"mint",
+], default-features = false }
