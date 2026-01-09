@@ -1,0 +1,20 @@
+[package]
+name = "operator"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+shared.workspace = true
+egui.workspace = true
+tracing.workspace = true
+wgpu.workspace = true
+chrono.workspace = true
+image.workspace = true
+rusty_spine = { git = "https://github.com/jabuwu/rusty_spine3.8", features = [
+	"draw_functions",
+], default-features = false }
+tokio = { version = "1.48.0", features = ["socket2", "sync"] }
+serde_json.workspace = true
