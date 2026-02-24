@@ -1,5 +1,5 @@
 use crate::operator::GeneralOperator;
-use shared::{self, events::Event, operator::Operator, texture::set_texture_cb};
+use shared::{self, ipc::events::Event, operator::Operator, texture::set_texture_cb};
 use tracing::debug;
 mod operator;
 mod skin;

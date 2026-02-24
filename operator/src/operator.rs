@@ -3,8 +3,7 @@ use egui::{self, Context, Pos2, Ui};
 use serde_json::json;
 use shared::{
     self,
-    events::Event,
-    ipc::Response,
+    ipc::{Response, events::Event},
     operator::{Error, Operator},
     skin::OperatorSkin,
     texture::SpineTexture,
@@ -113,7 +112,7 @@ impl Operator for GeneralOperator {
                 }
             }
 
-            let mut mesh: egui::Mesh = egui::Mesh::with_texture(texture_id.clone());
+            let mut mesh: egui::Mesh = egui::Mesh::with_texture(texture_id);
             let vertex_count: usize = renderable.vertices.len();
 
             for i in 0..vertex_count {
@@ -126,7 +125,7 @@ impl Operator for GeneralOperator {
                 );
 
                 mesh.vertices.push(egui::epaint::Vertex {
-                    pos: pos,
+                    pos,
                     uv: egui::pos2(u, v),
                     color: egui::Color32::WHITE,
                 });
@@ -173,6 +172,13 @@ impl Operator for GeneralOperator {
             crate::skin::AnimationTransition::new(anim.to_string(), 0.2),
             false,
         )?;
+        self.event_tx
+            .try_send(Event::OnAnimationChange {
+                to: "broadcast".to_string(),
+                from: self.id.clone(),
+                ani: anim.to_string(),
+            })
+            .expect("Failed to send event");
         Ok(())
     }
 
@@ -180,18 +186,16 @@ impl Operator for GeneralOperator {
         self.skin.ensure_textures_loaded(ctx);
     }
 
-    fn event_handler(&mut self, event: shared::events::Event) -> Result<Response, Error> {
+    fn event_handler(&mut self, event: shared::ipc::events::Event) -> Result<Response, Error> {
         debug!("handling event {} for {:?}", self.id, event);
         match &event {
-            Event::Retreat { .. } => return Ok(Response::Error("not implemented".to_string())),
+            Event::OnRetreat { .. } => return Ok(Response::Error("not implemented".to_string())),
             Event::SetSkin { .. } => return Ok(Response::Error("not implemented".to_string())),
-            Event::SetAnimation { ani, .. } => self.start_animation(&ani)?,
-            Event::MoveTo { pos, .. } => self.destiny = Pos2::new(pos.0, pos.1),
-            Event::Sleep { .. } => self.start_animation("Sleep")?,
-            Event::Sit { .. } => self.start_animation("Sit")?,
+            Event::SetAnimation { ani, .. } => self.start_animation(ani)?,
+            Event::MoveTo { position, .. } => self.destiny = Pos2::new(position.0, position.1),
             Event::Resize { scale, .. } => self.scale = *scale,
             Event::SetFacingDirection { direction, .. } => {
-                self.facing = if *direction {
+                self.facing = if *direction == "right" {
                     FacingDirection::Right
                 } else {
                     FacingDirection::Left
@@ -203,11 +207,16 @@ impl Operator for GeneralOperator {
             }
 
             Event::CustomEvent { .. } => {}
-            _ => todo!(),
+            _ => {
+                return Ok(Response::Error(format!(
+                    "Event {:?} not implemented",
+                    event
+                )));
+            }
         };
         Ok(Response::Success(
             json!({
-                "operator": event.operator_id()
+                "operator": event.to()
             })
             .to_string(),
         ))
