@@ -1,12 +1,14 @@
 use crate::operator::GeneralOperator;
-use shared::{self, ipc::events::Event, operator::Operator, texture::set_texture_cb};
+use shared::{self, ipc::events::Event, operator::Operator};
 use tracing::debug;
 mod operator;
 mod skin;
+mod texture;
+use texture::set_texture_cb;
 
 #[unsafe(no_mangle)]
 #[allow(improper_ctypes_definitions)]
-pub extern "C" fn new(
+pub unsafe extern "C" fn new(
     id: *const std::ffi::c_char,
     event_tx_ptr: *const std::ffi::c_void,
 ) -> Result<Box<dyn Operator>, shared::operator::Error> {

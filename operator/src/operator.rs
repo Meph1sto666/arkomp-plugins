@@ -1,14 +1,15 @@
 use crate::skin::{AnimationTransition, GeneralOperatorSkin};
-use egui::{self, Context, Pos2, Ui};
+use crate::texture::SpineTexture;
+use egui::{self, Color32, Context, Pos2, Stroke, Ui};
 use serde_json::json;
 use shared::{
     self,
     ipc::{Response, events::Event},
     operator::{Error, Operator},
     skin::OperatorSkin,
-    texture::SpineTexture,
 };
 use tracing::debug;
+use wgpu::Color;
 
 #[derive(Debug, Default, Clone, Copy)]
 enum FacingDirection {
@@ -30,6 +31,8 @@ pub struct GeneralOperator {
     facing: FacingDirection,
     fps: u8,
     walking_speed: f32,
+    mouse_pos: Option<Pos2>,
+    selected: bool,
 }
 
 impl GeneralOperator {
@@ -48,6 +51,8 @@ impl GeneralOperator {
             facing: FacingDirection::Right,
             fps: 60,
             walking_speed: 200.0,
+            mouse_pos: None,
+            selected: false,
         }))
     }
 
@@ -88,15 +93,26 @@ impl GeneralOperator {
     }
 
     fn velocity(&self) -> f32 {
-        (self.walking_speed as f32 / (self.fps) as f32) * self.scale
+        (self.walking_speed / (self.fps) as f32) * self.scale
+    }
+
+    // fn is_hovered(&self, renderable: &rusty_spine::controller::SkeletonRenderable) -> bool {
+    //     renderable.vertices
+    // }
+    fn reset_interaction(&mut self) {
+        self.start_animation("Relax").unwrap();
     }
 }
 
 impl Operator for GeneralOperator {
     fn render(&mut self, ctx: &Context, ui: &mut Ui) {
+        // save mouse position
+        self.mouse_pos = ui.input(|i| i.pointer.hover_pos());
+
         let controller: &mut rusty_spine::controller::SkeletonController =
             self.skin.get_active_controller_mut();
 
+        let mut hovered = false;
         for renderable in controller.renderables() {
             let mut texture_id: egui::TextureId = egui::TextureId::default();
             if let Some(attachment_renderer_object) = renderable.attachment_renderer_object {
@@ -134,7 +150,68 @@ impl Operator for GeneralOperator {
             for idx in renderable.indices.chunks_exact(3) {
                 mesh.add_triangle(idx[0] as u32, idx[1] as u32, idx[2] as u32);
             }
+
+            let bound = mesh.calc_bounds();
+            let _colour: egui::Color32 = if let Some(mouse_pos) = self.mouse_pos
+                && bound.contains(mouse_pos)
+            {
+                hovered = true;
+                egui::Color32::CYAN
+            } else if self.selected {
+                egui::Color32::LIGHT_GREEN
+            } else {
+                egui::Color32::MAGENTA
+            };
+
+            // ui.painter().rect_stroke(
+            //     bound,
+            //     0,
+            //     egui::Stroke::new(1.0, colour),
+            //     egui::StrokeKind::Outside,
+            // );
+
             ui.painter().add(mesh);
+        }
+
+        if ui.input(|i| i.pointer.primary_down()) && hovered {
+            self.position += ui.input(|i| i.pointer.delta());
+            self.destiny = self.position;
+        } else if ui.input(|i| i.pointer.secondary_clicked()) && hovered {
+            self.selected = !self.selected;
+            // self.destiny += ui.input(|i| i.pointer.delta())
+        } else if let Some(pos) = ui.input(|i| i.pointer.interact_pos())
+            && self.selected
+            && ui.input(|i| i.pointer.secondary_clicked())
+        {
+            self.destiny = pos;
+        }
+        // unsafe dogshit, redo this properly lol
+        if hovered && ui.input(|i| i.pointer.primary_clicked()) {
+            if let Some(mouse_pos) = self.mouse_pos {
+                ui.painter().circle(
+                    mouse_pos,
+                    2.0,
+                    Color32::GREEN,
+                    Stroke::new(0.0, Color32::TRANSPARENT),
+                );
+            }
+            self.start_animation("Interact").unwrap();
+
+            let self_ptr = self as *mut Self;
+            let prev_ani = self.skin.previous_ani.clone();
+
+            self.skin
+                .dorm_variant
+                .controller
+                .animation_state
+                .set_listener(move |_, e| match e {
+                    rusty_spine::AnimationEvent::End { .. }
+                    | rusty_spine::AnimationEvent::Complete { .. } => unsafe {
+                        let mut_self = &mut *self_ptr;
+                        mut_self.start_animation(&prev_ani).ok();
+                    },
+                    _ => {}
+                });
         }
     }
 
@@ -149,6 +226,7 @@ impl Operator for GeneralOperator {
         self.skin.apply_animation_state_change();
         if self.destiny != self.position {
             self.walk_to(self.destiny);
+            ctx.request_repaint();
             if self.destiny == self.position {
                 let prev_ani = &self.skin.previous_ani.clone();
                 let _ = self.skin.set_animation(
@@ -207,6 +285,7 @@ impl Operator for GeneralOperator {
             }
 
             Event::CustomEvent { .. } => {}
+            // Event::OnMouseMove { position, .. } => self.mouse_pos = *position,
             _ => {
                 return Ok(Response::Error(format!(
                     "Event {:?} not implemented",

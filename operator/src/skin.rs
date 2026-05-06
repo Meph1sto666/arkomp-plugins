@@ -1,11 +1,9 @@
+use crate::texture::SpineTexture;
 use rusty_spine::{
     AnimationStateData, Atlas, Skeleton, SkeletonBinary, SkeletonData,
     controller::SkeletonController,
 };
-use shared::{
-    skin::{Error, OperatorSkin, SkeletonFile},
-    texture::SpineTexture,
-};
+use shared::skin::{Error, OperatorSkin, SkeletonFile};
 use std::{collections::HashMap, path::PathBuf, sync::Arc};
 use tracing::{debug, error, warn};
 
@@ -179,7 +177,6 @@ impl GeneralOperatorSkin {
             .skeleton
             .data()
             .animations()
-            .into_iter()
             .map(|f| f.name().to_string())
             .collect();
         if self.battle_variant.is_some() {
